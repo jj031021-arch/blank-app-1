@@ -1,4 +1,4 @@
-import streamlit as st  # <--- 이 친구가 무조건 1등으로 있어야 합니다!
+import streamlit as st  # 무조건 1등으로 있어야 합니다!
 import pandas as pd
 import googlemaps
 import folium
@@ -7,11 +7,11 @@ import requests
 import google.generativeai as genai
 
 # ---------------------------------------------------------
-# 1. 설정 및 API 키 안전하게 로드
+# 1. 설정 및 API 키
 # ---------------------------------------------------------
 st.set_page_config(layout="wide", page_title="베를린 여행 & AI 가이드")
 
-# API 키 가져오기 (오류 방지 처리)
+# API 키 가져오기
 GMAPS_API_KEY = st.secrets.get("google_maps_api_key", "")
 GEMINI_API_KEY = st.secrets.get("gemini_api_key", "")
 
@@ -21,7 +21,7 @@ if GMAPS_API_KEY:
     try:
         gmaps = googlemaps.Client(key=GMAPS_API_KEY)
     except Exception as e:
-        st.error(f"❌ 구글맵 클라이언트 설정 오류: {e}")
+        st.error(f"❌ 구글맵 설정 오류: {e}")
 
 if GEMINI_API_KEY:
     try:
@@ -30,7 +30,7 @@ if GEMINI_API_KEY:
         st.error(f"❌ Gemini 설정 오류: {e}")
 
 # ---------------------------------------------------------
-# 2. 데이터 및 API 함수들 (디버깅 강화)
+# 2. 데이터 및 API 함수
 # ---------------------------------------------------------
 @st.cache_data
 def get_exchange_rate():
@@ -51,31 +51,23 @@ def get_weather():
         return {"temperature": "--", "weathercode": 0}
 
 @st.cache_data
-def get_google_places_detailed(place_type, keyword=None, min_rating=0.0):
-    # [디버깅] 클라이언트 확인
+def get_google_places_detailed(place_type, keyword=None, min_rating=4.0): # 평점 기준 4.0으로 완화
     if not gmaps:
-        return [] # 키가 없으면 조용히 빈 리스트 반환 (화면 깨짐 방지)
+        return []
     
+    # 베를린 중앙 (알렉산더 광장 근처로 중심 이동)
     berlin_center = (52.5200, 13.4050)
     places_result = []
     
     try:
-        # API 호출
+        # 반경을 15000 (15km)로 대폭 늘림
         results = gmaps.places_nearby(
             location=berlin_center,
-            radius=3000,
+            radius=15000, 
             type=place_type,
             keyword=keyword
         )
         
-        # [디버깅] 구글 API 상태 확인
-        status = results.get('status')
-        if status != 'OK' and status != 'ZERO_RESULTS':
-            st.error(f"⚠️ 구글맵 오류 ({place_type}): {status}")
-            if status == 'REQUEST_DENIED':
-                st.warning("👉 해결법: 구글 클라우드 콘솔에서 [결제 카드 등록] 및 [Places API 사용 설정]을 확인하세요.")
-            return []
-
         for place in results.get('results', []):
             rating = place.get('rating', 0)
             if rating >= min_rating:
@@ -92,80 +84,100 @@ def get_google_places_detailed(place_type, keyword=None, min_rating=0.0):
                     "link": link
                 })
         return places_result
-
     except Exception as e:
-        st.error(f"데이터 가져오기 실패: {e}")
         return []
 
 @st.cache_data
 def load_crime_data(csv_file):
     try:
-        # 파일 읽기 에러 방지
         df = pd.read_csv(csv_file, on_bad_lines='skip') 
+        if 'District' not in df.columns: return pd.DataFrame()
         
-        # 필수 컬럼 확인
-        if 'District' not in df.columns:
-            # st.warning("CSV 파일에 'District' 컬럼이 없습니다.")
-            return pd.DataFrame()
-
-        # 데이터 전처리
         if 'Year' in df.columns:
             latest_year = df['Year'].max()
             df = df[df['Year'] == latest_year]
         
-        # 숫자형 컬럼만 골라서 합계 내기 (범죄 수 계산)
         numeric_cols = df.select_dtypes(include=['number']).columns
         cols_to_sum = [c for c in numeric_cols if c not in ['Year', 'Code', 'District', 'Location']]
         
         df['Total_Crime'] = df[cols_to_sum].sum(axis=1)
         return df.groupby('District')['Total_Crime'].sum().reset_index()
-
-    except Exception:
-        # 파일이 없거나 문제가 있어도 앱이 멈추지 않게 빈 데이터 반환
+    except:
         return pd.DataFrame()
 
 def get_gemini_response(prompt):
-    if not GEMINI_API_KEY:
-        return "API 키가 없어서 답변할 수 없어요 🥲"
+    if not GEMINI_API_KEY: return "API 키 확인 필요"
     try:
         model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(prompt)
         return response.text
-    except Exception as e:
-        return f"오류 발생: {e}"
+    except: return "응답 불가"
 
 # ---------------------------------------------------------
-# 3. 메인 화면 구성
+# 3. 메인 화면
 # ---------------------------------------------------------
-st.title("🇩🇪 베를린: 여행, 안전, 그리고 AI")
+st.title("🇩🇪 베를린 전체 정복하기 (Travel & Safety)")
 
-# 세션 상태 초기화
 if 'reviews' not in st.session_state: st.session_state['reviews'] = {}
 if 'messages' not in st.session_state: st.session_state['messages'] = []
 
-# 상단 정보
 col1, col2 = st.columns(2)
 with col1:
     rate = get_exchange_rate()
-    st.info(f"💶 유로 환율: {rate:.0f}원")
+    st.info(f"💶 환율: {rate:.0f}원")
 with col2:
     w = get_weather()
     st.info(f"⛅ 날씨: {w['temperature']}°C")
 
 # 사이드바
-st.sidebar.title("설정 & 메뉴")
-st.sidebar.subheader("1. 지도 필터")
-show_crime = st.sidebar.toggle("🚨 범죄 위험도", True)
-show_res = st.sidebar.toggle("🍽️ 맛집 (4.5+)", True)
+st.sidebar.header("🔍 지도 필터")
+show_crime = st.sidebar.toggle("🚨 범죄 위험도 (구역별 색상)", True)
+show_res = st.sidebar.toggle("🍽️ 맛집 (평점 4.0+)", True)
 show_hotel = st.sidebar.toggle("🏨 숙박시설", False)
 show_tour = st.sidebar.toggle("📸 관광지", False)
 
-st.sidebar.subheader("2. 추천 여행 코스")
-course_select = st.sidebar.radio("코스 선택:", ("선택 안함", "🏛️ 박물관 섬 & 힙한 점심", "🕊️ 역사와 쇼핑의 조화"))
+st.sidebar.divider()
 
-# 지도
-st.subheader("🗺️ 인터랙티브 지도")
-m = folium.Map(location=[52.5200, 13.4050], zoom_start=13)
+# 6가지 여행 코스 정의
+courses = {
+    "🌳 1. 상쾌한 공기가 필요한 날 (티어가르텐)": [
+        {"name": "전승기념탑 (Siegessäule)", "lat": 52.5145, "lng": 13.3501, "desc": "베를린 천사가 내려다보는 탑"},
+        {"name": "티어가르텐 산책로", "lat": 52.5135, "lng": 13.3575, "desc": "도심 속 거대한 숲"},
+        {"name": "Cafe am Neuen See", "lat": 52.5076, "lng": 13.3448, "desc": "호숫가에서 즐기는 맥주와 피자"}
+    ],
+    "🎨 2. 미술적 교양이 필요한 날 (박물관섬)": [
+        {"name": "구 국립 미술관", "lat": 52.5208, "lng": 13.3982, "desc": "아름다운 건축과 고전 예술"},
+        {"name": "제임스 사이먼 갤러리", "lat": 52.5203, "lng": 13.3996, "desc": "현대적 건축미가 돋보이는 입구"},
+        {"name": "베를린 돔", "lat": 52.5190, "lng": 13.4010, "desc": "베를린을 상징하는 거대한 성당"}
+    ],
+    "🏰 3. 역사의 흔적을 걷는 날 (장벽 투어)": [
+        {"name": "베를린 장벽 기념관", "lat": 52.5352, "lng": 13.3903, "desc": "분단의 아픔이 생생한 곳"},
+        {"name": "마우어파크 (Mauerpark)", "lat": 52.5404, "lng": 13.4048, "desc": "주말 벼룩시장과 가라오케"},
+        {"name": "이스트 사이드 갤러리", "lat": 52.5050, "lng": 13.4397, "desc": "장벽 위에 그려진 예술 작품들"}
+    ],
+    "🛍️ 4. 지갑이 열리는 날 (서베를린 쇼핑)": [
+        {"name": "카이저 빌헬름 교회", "lat": 52.5048, "lng": 13.3350, "desc": "전쟁의 상처를 간직한 교회"},
+        {"name": "KaDeWe 백화점", "lat": 52.5015, "lng": 13.3414, "desc": "유럽 최대 규모의 럭셔리 백화점"},
+        {"name": "쿠담 거리 (Kurfürstendamm)", "lat": 52.5028, "lng": 13.3323, "desc": "명품과 패션의 거리"}
+    ],
+    "🕶️ 5. 힙한 베를린을 느끼는 날 (크로이츠베르크)": [
+        {"name": "Markthalle Neun", "lat": 52.5020, "lng": 13.4310, "desc": "트렌디한 실내 시장과 길거리 음식"},
+        {"name": "오버바움 다리", "lat": 52.5015, "lng": 13.4455, "desc": "가장 아름다운 붉은 벽돌 다리"},
+        {"name": "Voo Store", "lat": 52.5005, "lng": 13.4215, "desc": "베를린 힙스터들의 편집샵"}
+    ],
+    "🍺 6. 맥주와 야경이 고픈 날 (프렌츠라우어)": [
+        {"name": "Kulturbrauerei", "lat": 52.5390, "lng": 13.4135, "desc": "오래된 양조장을 개조한 문화 복합 공간"},
+        {"name": "Prater Beer Garden", "lat": 52.5399, "lng": 13.4101, "desc": "베를린에서 가장 오래된 비어가든"},
+        {"name": "소니 센터 (야경)", "lat": 52.5098, "lng": 13.3732, "desc": "미래 도시 같은 화려한 지붕 야경"}
+    ]
+}
+
+st.sidebar.header("🛤️ 추천 여행 코스 (6 Themes)")
+course_select = st.sidebar.radio("오늘의 테마는?", ["선택 안함"] + list(courses.keys()))
+
+# 지도 그리기
+st.subheader("🗺️ 베를린 전체 지도")
+m = folium.Map(location=[52.5200, 13.4050], zoom_start=12) # 줌 레벨 조정
 
 # 1. 범죄 지도
 if show_crime:
@@ -182,7 +194,7 @@ if show_crime:
             name="범죄 위험도"
         ).add_to(m)
 
-# 2. 장소 마커 (채팅방 목록 수집용)
+# 2. 마커 추가 함수
 all_places_for_chat = []
 
 def add_markers_detailed(data_list, color, icon_type, type_name):
@@ -203,58 +215,49 @@ def add_markers_detailed(data_list, color, icon_type, type_name):
         ).add_to(fg)
     fg.add_to(m)
 
-# 구글 맵 데이터 로드
 if show_res:
-    add_markers_detailed(get_google_places_detailed('restaurant', min_rating=4.5), 'green', 'cutlery', '맛집')
+    add_markers_detailed(get_google_places_detailed('restaurant', min_rating=4.0), 'green', 'cutlery', '맛집')
 if show_hotel:
-    add_markers_detailed(get_google_places_detailed('lodging'), 'blue', 'bed', '호텔')
+    add_markers_detailed(get_google_places_detailed('lodging', min_rating=4.0), 'blue', 'bed', '호텔')
 if show_tour:
-    add_markers_detailed(get_google_places_detailed('tourist_attraction'), 'purple', 'camera', '관광지')
+    add_markers_detailed(get_google_places_detailed('tourist_attraction', min_rating=4.0), 'purple', 'camera', '관광지')
 
-# 3. 여행 코스 (하드코딩)
-courses = {
-    "🏛️ 박물관 섬 & 힙한 점심": [
-        {"name": "1. 보데 박물관", "lat": 52.5218, "lng": 13.3956},
-        {"name": "2. 제임스 사이먼 공원", "lat": 52.5213, "lng": 13.4005},
-        {"name": "3. Monsieur Vuong (맛집)", "lat": 52.5244, "lng": 13.4085},
-        {"name": "4. 알렉산더 광장", "lat": 52.5219, "lng": 13.4132}
-    ],
-    "🕊️ 역사와 쇼핑의 조화": [
-        {"name": "1. 브란덴부르크 문", "lat": 52.5163, "lng": 13.3777},
-        {"name": "2. 홀로코스트 추모비", "lat": 52.5139, "lng": 13.3787},
-        {"name": "3. Mall of Berlin", "lat": 52.5106, "lng": 13.3807},
-        {"name": "4. 체크포인트 찰리", "lat": 52.5074, "lng": 13.3904}
-    ]
-}
-
+# 3. 코스 표시
 if course_select != "선택 안함":
+    # 선택된 코스 이름에서 이모지와 번호 등을 매칭
     c_data = courses[course_select]
     points = [(p['lat'], p['lng']) for p in c_data]
     
-    # 마커
-    for p in c_data:
-        folium.Marker([p['lat'], p['lng']], tooltip=p['name'], icon=folium.Icon(color='red', icon='info-sign')).add_to(m)
-    # 선
+    # 시작/중간/끝 마커
+    for i, p in enumerate(c_data):
+        folium.Marker(
+            [p['lat'], p['lng']], 
+            tooltip=f"{i+1}. {p['name']}",
+            popup=f"<b>{p['name']}</b><br>{p['desc']}",
+            icon=folium.Icon(color='red', icon='flag', prefix='fa')
+        ).add_to(m)
+    
+    # 경로 선
     folium.PolyLine(points, color="red", weight=5, opacity=0.8).add_to(m)
 
-st_folium(m, width="100%", height=500)
+st_folium(m, width="100%", height=600)
 
 st.divider()
 
-# 하단: 채팅 및 AI
+# 채팅 & AI
 col_chat, col_ai = st.columns([1, 1])
 
 with col_chat:
     st.subheader("💬 장소별 수다방")
     unique_places = sorted(list(set(all_places_for_chat)))
     if not unique_places:
-        place_options = ["(장소 없음 - API 키를 확인하세요)"]
+        place_options = ["(장소 로딩중 or 없음)"]
     else:
         place_options = ["(장소를 선택하세요)"] + unique_places
 
     sel_place = st.selectbox("어디에 대해 이야기할까요?", place_options)
     
-    if sel_place not in ["(장소를 선택하세요)", "(장소 없음 - API 키를 확인하세요)"]:
+    if sel_place not in ["(장소를 선택하세요)", "(장소 로딩중 or 없음)"]:
         if sel_place not in st.session_state['reviews']:
             st.session_state['reviews'][sel_place] = []
         
