@@ -4,3 +4,4 @@ googlemaps
 folium
 streamlit-folium
 requests
+google-generativeai
