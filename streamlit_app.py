@@ -52,30 +52,21 @@ def get_weather():
 
 @st.cache_data
 def get_google_places(place_type, lat, lng, radius_m=2000):
-    """
-    Google Places API를 사용하여 주변 장소를 검색합니다.
-    """
     if not gmaps: return []
-    
     places_result = []
     try:
-        # Google Maps API 호출
         results = gmaps.places_nearby(
             location=(lat, lng),
             radius=radius_m,
             type=place_type
         )
-        
         for place in results.get('results', []):
             name = place.get('name', 'Unknown')
             rating = place.get('rating', 'N/A')
             vicinity = place.get('vicinity', '')
-            
-            # 구글 검색 링크 생성
             search_query = f"{name} Berlin".replace(" ", "+")
             google_link = f"https://www.google.com/search?q={search_query}"
             
-            # 타입에 따른 설명
             desc = "장소"
             if place_type == 'restaurant': desc = "맛집"
             elif place_type == 'lodging': desc = "숙소"
@@ -92,11 +83,9 @@ def get_google_places(place_type, lat, lng, radius_m=2000):
                 "link": google_link
             })
         return places_result
-    except Exception as e:
-        # st.error(f"Google API Error: {e}") 
+    except:
         return []
 
-# 주소 -> 좌표 변환 (Google Geocoding API 사용)
 def get_coordinates_google(query):
     if not gmaps: return None, None, None
     try:
@@ -109,7 +98,6 @@ def get_coordinates_google(query):
         pass
     return None, None, None
 
-# 지도 표시용 범죄 데이터 (District 합계)
 @st.cache_data
 def load_and_process_crime_data(csv_file):
     try:
@@ -127,7 +115,6 @@ def load_and_process_crime_data(csv_file):
         return district_df
     except: return pd.DataFrame()
 
-# 통계 분석용 원본 데이터
 @st.cache_data
 def load_crime_data_raw(csv_file):
     try:
@@ -145,63 +132,57 @@ def get_gemini_response(prompt):
     except: return "AI 응답 오류"
 
 # ---------------------------------------------------------
-# 3. 여행 코스 데이터
+# 3. 여행 코스 데이터 (관광-관광-식당-관광-관광 순서)
 # ---------------------------------------------------------
 courses = {
-    "🌳 Theme 1: 숲과 힐링": [
+    "🌳 Theme 1: 숲과 힐링 (티어가르텐)": [
         {"name": "1. 전승기념탑", "lat": 52.5145, "lng": 13.3501, "type": "view", "desc": "베를린 전경이 한눈에 보이는 황금 천사상"},
-        {"name": "2. 티어가르텐 산책", "lat": 52.5135, "lng": 13.3575, "type": "walk", "desc": "도심 속 거대한 허파"},
-        {"name": "3. Cafe am Neuen See", "lat": 52.5076, "lng": 13.3448, "type": "food", "desc": "호수 앞 비어가든"},
-        {"name": "4. 베를린 동물원", "lat": 52.5079, "lng": 13.3377, "type": "view", "desc": "세계 최대 종을 보유한 동물원"},
-        {"name": "5. Monkey Bar", "lat": 52.5049, "lng": 13.3353, "type": "food", "desc": "동물원 뷰 루프탑 바"},
-        {"name": "6. 카이저 빌헬름 교회", "lat": 52.5048, "lng": 13.3350, "type": "view", "desc": "전쟁의 상처를 간직한 교회"}
+        {"name": "2. 티어가르텐 산책", "lat": 52.5135, "lng": 13.3575, "type": "walk", "desc": "도심 속 거대한 허파, 맑은 공기 마시기"},
+        {"name": "3. Cafe am Neuen See (점심/휴식)", "lat": 52.5076, "lng": 13.3448, "type": "food", "desc": "호수 바로 앞, 피자와 맥주가 맛있는 비어가든"},
+        {"name": "4. 베를린 동물원", "lat": 52.5079, "lng": 13.3377, "type": "view", "desc": "세계 최대 종을 보유한 역사 깊은 동물원"},
+        {"name": "5. 카이저 빌헬름 교회", "lat": 52.5048, "lng": 13.3350, "type": "view", "desc": "전쟁의 참상을 기억하기 위해 보존된 교회"}
     ],
-    "🎨 Theme 2: 예술과 고전": [
-        {"name": "1. 베를린 돔", "lat": 52.5190, "lng": 13.4010, "type": "view", "desc": "웅장한 돔 지붕"},
-        {"name": "2. 구 국립 미술관", "lat": 52.5208, "lng": 13.3982, "type": "view", "desc": "고전 예술의 정수"},
-        {"name": "3. 제임스 사이먼 공원", "lat": 52.5213, "lng": 13.4005, "type": "walk", "desc": "강변 산책로"},
-        {"name": "4. Hackescher Hof", "lat": 52.5246, "lng": 13.4020, "type": "view", "desc": "아름다운 안뜰"},
-        {"name": "5. Monsieur Vuong", "lat": 52.5244, "lng": 13.4085, "type": "food", "desc": "유명 베트남 쌀국수"},
-        {"name": "6. Zeit für Brot", "lat": 52.5265, "lng": 13.4090, "type": "food", "desc": "최고의 시나몬 롤"}
+    "🎨 Theme 2: 예술과 고전 (박물관 섬)": [
+        {"name": "1. 베를린 돔", "lat": 52.5190, "lng": 13.4010, "type": "view", "desc": "웅장한 돔 지붕 위에서 보는 시내 뷰"},
+        {"name": "2. 구 국립 미술관", "lat": 52.5208, "lng": 13.3982, "type": "view", "desc": "그리스 신전 같은 외관과 19세기 회화"},
+        {"name": "3. Monsieur Vuong (맛집)", "lat": 52.5244, "lng": 13.4085, "type": "food", "desc": "항상 줄 서서 먹는 전설적인 베트남 쌀국수"},
+        {"name": "4. Hackescher Hof", "lat": 52.5246, "lng": 13.4020, "type": "view", "desc": "아르누보 양식의 아름다운 8개 안뜰"},
+        {"name": "5. 제임스 사이먼 공원", "lat": 52.5213, "lng": 13.4005, "type": "walk", "desc": "슈프레 강변에 앉아 쉬어가는 현지인 핫플"}
     ],
-    "🏰 Theme 3: 분단의 역사": [
-        {"name": "1. 베를린 장벽 기념관", "lat": 52.5352, "lng": 13.3903, "type": "view", "desc": "장벽의 실제 모습"},
-        {"name": "2. Mauerpark", "lat": 52.5404, "lng": 13.4048, "type": "walk", "desc": "주말 벼룩시장"},
-        {"name": "3. Prater Beer Garden", "lat": 52.5399, "lng": 13.4101, "type": "food", "desc": "가장 오래된 비어가든"},
-        {"name": "4. 체크포인트 찰리", "lat": 52.5074, "lng": 13.3904, "type": "view", "desc": "검문소"},
-        {"name": "5. Topography of Terror", "lat": 52.5065, "lng": 13.3835, "type": "view", "desc": "나치 역사관"},
-        {"name": "6. Mall of Berlin", "lat": 52.5106, "lng": 13.3807, "type": "food", "desc": "쇼핑몰"}
+    "🏰 Theme 3: 분단의 역사 (장벽 투어)": [
+        {"name": "1. 베를린 장벽 기념관", "lat": 52.5352, "lng": 13.3903, "type": "view", "desc": "장벽이 실제 모습 그대로 보존된 야외 박물관"},
+        {"name": "2. Mauerpark (마우어파크)", "lat": 52.5404, "lng": 13.4048, "type": "walk", "desc": "역사적인 장소이자 현재는 자유로운 공원"},
+        {"name": "3. Prater Beer Garden (맛집)", "lat": 52.5399, "lng": 13.4101, "type": "food", "desc": "베를린에서 가장 오래된 야외 맥주집"},
+        {"name": "4. 체크포인트 찰리", "lat": 52.5074, "lng": 13.3904, "type": "view", "desc": "미군과 소련군이 대치했던 검문소"},
+        {"name": "5. Topography of Terror", "lat": 52.5065, "lng": 13.3835, "type": "view", "desc": "나치 비밀경찰 본부 터에 지어진 무료 역사관"}
     ],
-    "🕶️ Theme 4: 힙스터 성지": [
-        {"name": "1. 오버바움 다리", "lat": 52.5015, "lng": 13.4455, "type": "view", "desc": "붉은 벽돌 다리"},
-        {"name": "2. 이스트 사이드 갤러리", "lat": 52.5050, "lng": 13.4397, "type": "walk", "desc": "야외 갤러리"},
-        {"name": "3. Burgermeister", "lat": 52.5005, "lng": 13.4420, "type": "food", "desc": "다리 밑 버거집"},
-        {"name": "4. Markthalle Neun", "lat": 52.5020, "lng": 13.4310, "type": "food", "desc": "실내 시장"},
-        {"name": "5. Voo Store", "lat": 52.5005, "lng": 13.4215, "type": "view", "desc": "편집샵"},
-        {"name": "6. Landwehr Canal", "lat": 52.4960, "lng": 13.4150, "type": "walk", "desc": "운하 산책"}
+    "🕶️ Theme 4: 힙스터 성지 (크로이츠베르크)": [
+        {"name": "1. 이스트 사이드 갤러리", "lat": 52.5050, "lng": 13.4397, "type": "walk", "desc": "형제의 키스 그림이 있는 세계 최장 야외 갤러리"},
+        {"name": "2. 오버바움 다리", "lat": 52.5015, "lng": 13.4455, "type": "view", "desc": "동서를 잇는 붉은 벽돌 다리, 최고의 포토존"},
+        {"name": "3. Burgermeister (맛집)", "lat": 52.5005, "lng": 13.4420, "type": "food", "desc": "다리 밑 공중화장실을 개조해 만든 힙한 버거집"},
+        {"name": "4. Voo Store", "lat": 52.5005, "lng": 13.4215, "type": "view", "desc": "패션 피플들이 찾는 숨겨진 편집샵"},
+        {"name": "5. Landwehr Canal", "lat": 52.4960, "lng": 13.4150, "type": "walk", "desc": "백조를 보며 걷거나 보트를 타는 운하 산책로"}
     ],
-    "🛍️ Theme 5: 럭셔리 & 쇼핑": [
-        {"name": "1. KaDeWe", "lat": 52.5015, "lng": 13.3414, "type": "view", "desc": "최대 백화점"},
-        {"name": "2. 쿠담 거리", "lat": 52.5028, "lng": 13.3323, "type": "walk", "desc": "명품 거리"},
-        {"name": "3. Bikini Berlin", "lat": 52.5055, "lng": 13.3370, "type": "view", "desc": "컨셉 쇼핑몰"},
-        {"name": "4. C/O Berlin", "lat": 52.5065, "lng": 13.3325, "type": "view", "desc": "사진 미술관"},
-        {"name": "5. Schwarzes Café", "lat": 52.5060, "lng": 13.3250, "type": "food", "desc": "24시간 카페"},
-        {"name": "6. Savignyplatz", "lat": 52.5060, "lng": 13.3220, "type": "walk", "desc": "서점과 카페"}
+    "🛍️ Theme 5: 럭셔리 & 쇼핑 (쿠담)": [
+        {"name": "1. KaDeWe 백화점", "lat": 52.5015, "lng": 13.3414, "type": "view", "desc": "유럽 대륙 최대의 백화점, 6층 식품관 필수"},
+        {"name": "2. Bikini Berlin", "lat": 52.5055, "lng": 13.3370, "type": "view", "desc": "동물원이 보이는 독특한 컨셉의 쇼핑몰"},
+        {"name": "3. Schwarzes Café (식사)", "lat": 52.5060, "lng": 13.3250, "type": "food", "desc": "24시간 영업하는 예술가들의 아지트 카페"},
+        {"name": "4. C/O Berlin", "lat": 52.5065, "lng": 13.3325, "type": "view", "desc": "사진 예술 전문 미술관"},
+        {"name": "5. 쿠담 거리 산책", "lat": 52.5028, "lng": 13.3323, "type": "walk", "desc": "베를린의 샹젤리제, 명품 브랜드 거리"}
     ],
-    "🌙 Theme 6: 화려한 밤": [
-        {"name": "1. TV타워", "lat": 52.5208, "lng": 13.4094, "type": "view", "desc": "야경 감상"},
-        {"name": "2. 로젠탈러 거리", "lat": 52.5270, "lng": 13.4020, "type": "walk", "desc": "트렌디한 골목"},
-        {"name": "3. Clärchens Ballhaus", "lat": 52.5265, "lng": 13.3965, "type": "food", "desc": "무도회장 식사"},
-        {"name": "4. House of Small Wonder", "lat": 52.5240, "lng": 13.3920, "type": "food", "desc": "브런치 맛집"},
-        {"name": "5. Friedrichstadt-Palast", "lat": 52.5235, "lng": 13.3885, "type": "view", "desc": "화려한 쇼"},
-        {"name": "6. 브란덴부르크 문", "lat": 52.5163, "lng": 13.3777, "type": "walk", "desc": "야경 랜드마크"}
+    "🌙 Theme 6: 화려한 밤 (미테 & 야경)": [
+        {"name": "1. 알렉산더 광장 TV타워", "lat": 52.5208, "lng": 13.4094, "type": "view", "desc": "베를린 가장 높은 곳에서 야경 감상"},
+        {"name": "2. 로젠탈러 거리", "lat": 52.5270, "lng": 13.4020, "type": "walk", "desc": "트렌디한 샵과 갤러리가 모인 골목"},
+        {"name": "3. Clärchens Ballhaus (저녁)", "lat": 52.5265, "lng": 13.3965, "type": "food", "desc": "100년 넘은 무도회장에서 분위기 있는 식사"},
+        {"name": "4. Friedrichstadt-Palast", "lat": 52.5235, "lng": 13.3885, "type": "view", "desc": "라스베가스 스타일의 화려한 쇼 공연장"},
+        {"name": "5. 브란덴부르크 문 (야경)", "lat": 52.5163, "lng": 13.3777, "type": "walk", "desc": "밤에 조명이 켜지면 더 웅장한 랜드마크"}
     ]
 }
 
 # ---------------------------------------------------------
 # 4. 메인 화면 구성
 # ---------------------------------------------------------
-st.title("🇩🇪 베를린 가이드 (Google API Powered)")
+st.title("🇩🇪 베를린 가이드 (Google API Ver.)")
 st.caption("Google Places API를 사용하여 정확하고 풍부한 정보를 제공합니다.")
 
 # 세션 초기화
@@ -225,7 +206,7 @@ st.divider()
 # --- 사이드바 ---
 st.sidebar.title("🛠️ 여행 도구")
 
-# 1. 검색 (Google Geocoding 사용)
+# 1. 검색 (Google Geocoding API)
 st.sidebar.subheader("🔍 장소 찾기 (위치 이동)")
 st.sidebar.caption("지도 중심을 이동하여 주변 정보를 갱신합니다.")
 search_query = st.sidebar.text_input("장소 이름 (예: Potsdamer Platz)", placeholder="엔터키 입력")
@@ -251,7 +232,7 @@ show_food = st.sidebar.toggle("🍽️ 음식점 (Restaurant)", True)
 tab1, tab2, tab3, tab4 = st.tabs(["🗺️ 구글 지도 탐험", "🚩 추천 코스 (6 Themes)", "💬 여행자 수다방", "📊 범죄 통계 분석"])
 
 # =========================================================
-# TAB 1: 자유 탐험 (Google Places API 사용)
+# TAB 1: 자유 탐험 (Google Places API)
 # =========================================================
 with tab1:
     center = st.session_state['map_center']
@@ -281,7 +262,7 @@ with tab1:
                 name="범죄"
             ).add_to(m1)
 
-    # 2. 구글 플레이스 데이터 (중심 좌표 기준 검색)
+    # 2. 구글 플레이스 데이터
     if show_food:
         places = get_google_places('restaurant', center[0], center[1], 2000)
         fg_food = folium.FeatureGroup(name="식당")
@@ -336,7 +317,7 @@ with tab1:
     st_folium(m1, width="100%", height=600)
 
 # =========================================================
-# TAB 2: 추천 코스
+# TAB 2: 추천 코스 (식당 1개, 중간 배치)
 # =========================================================
 with tab2:
     st.subheader("🌟 테마별 추천 코스")
@@ -382,7 +363,7 @@ with tab2:
                 st.markdown(f"[🔍 구글 검색 바로가기](https://www.google.com/search?q={q})")
 
 # =========================================================
-# TAB 3: 수다방 & AI (추천 기능 보강)
+# TAB 3: 수다방 & AI (추천 + 대댓글 기능 포함)
 # =========================================================
 with tab3:
     col_chat, col_ai = st.columns([1, 1])
@@ -522,4 +503,4 @@ with tab4:
         st.plotly_chart(fig_line, use_container_width=True)
 
     else:
-        st.error("데이터를 로드할 수 없습니다.")
+        st.error("데이터 로드 실패")
